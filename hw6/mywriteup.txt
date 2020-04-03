@@ -1,3 +1,5 @@
+# Writeup
+
 ## Design Choices
 I allowed records with some null columns to be inserted. If there is an invalid entry in the record (for example, num_potholes_filled is a float instead of an integer), I will set that field to null when inserting the record. I chose to allow these potentially invalid records because this would mitigate the cases of rolling back an entire batch, validating each entry in it, and attempting insertion again. I believe my design choice gives better insertion performance as well as better correctness guarantee (no missed data).
 As a proof of correctness, all 560478 records will be inserted into my table. I had 78 records with the most recent action "WM CDOT Recommended Restoration Transfer Outcome".
