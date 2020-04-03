@@ -1,0 +1,51 @@
+## Design Choices
+I allowed records with some null columns to be inserted. If there is an invalid entry in the record (for example, num_potholes_filled is a float instead of an integer), I will set that field to null when inserting the record. I chose to allow these potentially invalid records because this would mitigate the cases of rolling back an entire batch, validating each entry in it, and attempting insertion again. I believe my design choice gives better insertion performance as well as better correctness guarantee (no missed data).
+As a proof of correctness, all 560478 records will be inserted into my table. I had 78 records with the most recent action "WM CDOT Recommended Restoration Transfer Outcome".
+
+## Batchsizing
+Performance should scale positively with batch size, because the bigger the batch, the fewer commits the DB needs to perform. Hence, for performance, I always used batch sizes ranging from 10000 to 100000. A downside of bigger batches could be that whole batches could fail and had to be rolled back in the case of unstable network connection and so on.
+
+## Choice of Index
+I created two btree indices, one for latitude and one for longitude. I chose btree indices because both latitude and longitude were issuing range scans, and the data seems pretty dense upon inspection.
+
+## Benchmarking
+
+### batchSize 10000
+     [java] Loading,index=false,lines=560478,time=195559
+     [java] Querying,index=false,queries=2920,time=127664
+     [java] Loading,index=true,lines=560478,time=183748
+     [java] Querying,index=true,queries=2920,time=36514
+
+### batchSize 30000
+     [java] Loading,index=false,lines=560478,time=161629
+     [java] Querying,index=false,queries=2920,time=127621
+     [java] Loading,index=true,lines=560478,time=168885
+     [java] Querying,index=true,queries=2920,time=36557
+
+### batchSize 60000
+     [java] Loading,index=false,lines=560478,time=159484
+     [java] Querying,index=false,queries=2920,time=129297
+     [java] Loading,index=true,lines=560478,time=172304
+     [java] Querying,index=true,queries=2920,time=36083
+
+### batchSize 100000
+     [java] Loading,index=false,lines=560478,time=158285
+     [java] Querying,index=false,queries=2920,time=126204
+     [java] Loading,index=true,lines=560478,time=166496
+     [java] Querying,index=true,queries=2920,time=36523
+
+### batchSize 200000
+     [java] Loading,index=false,lines=560478,time=156526
+     [java] Querying,index=false,queries=2920,time=124974
+     [java] Loading,index=true,lines=560478,time=164193
+     [java] Querying,index=true,queries=2920,time=36012
+
+
+### Remarks
+As reasoned above, a bigger batch size generally improves data loading performance. However, the rate of increase gradually diminishes for larger batch sizes. The reason could be that committing an entire large batch was still very costly.
+Loading data and creating indices will take about 1.05 times the time of loading data without creating indices.
+My two btree indices result in significant speedup, cutting down the querying time without indices by over 70%.
+
+## Misc
+A particularly annoying bug was that I checked `resultSet.next()` once to ensure it's not empty before using a while loop to collect its content. The problem is that `next` has advanced its pointer and hence I am always missing one row.
+For the ease of implementation, whenever the second predicate is null, I put in '1'='1' as the second predicate. Not sure if this will lend way to SQL injection attacks. Another benefit of prepared statements beside performance increase is indeed to thwart SQL injection attacks.
